@@ -51,3 +51,22 @@ class ANPRDetector:
     print("Loading easyocr reader...")
     self.ocr_reader = easyocr.Reader(["en"]) 
     gpu = (self.device=="cuda")
+
+  # detect vehicles
+  def _detect_vehicles(self, frame):
+    
+    # run YOLOv8 and return boxes for vehicle-class objects only
+    results = self.vehicle_model(frame, verbose=False)[0]
+    vehicle_boxes = []
+    for box in results.boxes:
+      cls_id = int(box.cls[0])
+      if cls_id in VEHICLE_CLASS_IDS:
+        x1, y1, x2, y2 = map(int, box.xyxy[0])
+        vehicle_boxes.append(
+          {
+            "bbox": (x1, y1, x2, y2),
+            "label": VEHICLE_CLASS_IDS[cls_id],
+            "conf": float(box.conf[0]),
+          }
+        )
+    return vehicle_boxes
