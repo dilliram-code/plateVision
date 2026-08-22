@@ -70,3 +70,43 @@ class ANPRDetector:
           }
         )
     return vehicle_boxes
+  
+  # detect plates yolo
+  def _detect_plates_yolo(self, crop):
+    # run the custom YOLOv8 plate model on a vehicle crop
+    results = self.plate_model(crop, verbose=False)[0]
+    plates = []
+    for box in results.boxes:
+      x1, y1, x2, y2 = map(int, box.xyxy[0])
+      plates.append(
+        {
+          "bbox": (x1, y1, x2, y2),
+          "conf": float(box.conf[0])
+        }
+      )
+    return plates
+  
+  # OCR the cropped plate image -> (text, confidence).
+  def _read_plate_text(self, plate_crop):
+    if plate_crop.size == 0:
+      return None, 0.0
+    h, w = plate_crop.shape[:2]
+    if w < 200:
+      scale = 200 / w
+      plate_crop = cv2.resize(plate_crop, (int(w * scale), int(h * scale)))
+
+    gray = cv2.cvtColor(plate_crop, cv2.COLOR_BGR2GRAY)
+    gray = cv2.equalizeHist(gray)
+
+    ocr_results = self.ocr_reader.readtext(gray)
+    if not ocr_results:
+      return None, 0.0
+
+    texts, confs = zip(*[(r[1], r[2]) for r in ocr_results])
+    combined_text = clean_plate_text("".join(texts))
+    avg_conf = float(np.mean(confs))
+
+    if len(combined_text) < MIN_PLATE_TEXT_LENGTH:
+      return None, 0.0
+
+    return combined_text, avg_conf

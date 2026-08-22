@@ -1,0 +1,21 @@
+# ===== Core deep learning stack =====
+torch>=2.1.0                
+torchvision>=0.16.0         
+ultralytics>=8.2.0          #
+
+# ===== Computer vision / image handling =====
+opencv-python>=4.9.0        
+Pillow>=10.2.0               
+easyocr>=1.7.1               
+
+# ===== Data handling =====
+numpy>=1.26.0               
+pandas>=2.2.0                
+
+# ===== Web backend / dashboard =====
+fastapi>=0.110.0              
+uvicorn[standard]>=0.29.0     
+python-multipart>=0.0.9       
+jinja2>=3.1.0                 
+
+
