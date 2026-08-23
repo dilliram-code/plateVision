@@ -110,3 +110,57 @@ class ANPRDetector:
       return None, 0.0
 
     return combined_text, avg_conf
+  
+  def process_frame(self, frame):
+    annotated = frame.copy()
+    detections = []
+
+    vehicles = self._detect_vehicles(frame)
+
+    for vehicle in vehicles:
+      x1, y1, x2, y2 = vehicle["bbox"]
+      # Draw the vehicle bounding box (subtle, thin line).
+      cv2.rectangle(annotated, (x1, y1), (x2, y2), (219, 152, 52), 2)
+      cv2.putText(
+                annotated, vehicle["label"], (x1, max(y1 - 8, 0)),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (219, 152, 52), 2,
+            )
+
+      vehicle_crop = frame[y1:y2, x1:x2]
+      if vehicle_crop.size == 0:
+        continue
+
+      # Stage 2: find plate(s) within this vehicle crop.
+      if self.use_yolo_plate_model:
+        plates = self._detect_plates_yolo(vehicle_crop)
+      else:
+        plates = self._detect_plates_haar(vehicle_crop)
+
+      for plate in plates:
+        px1, py1, px2, py2 = plate["bbox"]
+        plate_crop = vehicle_crop[py1:py2, px1:px2]
+
+        # Stage 3: OCR the plate crop.
+        text, ocr_conf = self._read_plate_text(plate_crop)
+        if text is None:
+          continue
+
+        # Translate plate box coords back to the FULL frame (for drawing).
+        abs_x1, abs_y1 = x1 + px1, y1 + py1
+        abs_x2, abs_y2 = x1 + px2, y1 + py2
+        cv2.rectangle(annotated, (abs_x1, abs_y1), (abs_x2, abs_y2), (63, 209, 51), 2)
+        cv2.putText(
+                      annotated, text, (abs_x1, max(abs_y1 - 10, 0)),
+                      cv2.FONT_HERSHEY_SIMPLEX, 0.7, (63, 209, 51), 2,
+                  )
+        overall_conf = (plate["conf"] + ocr_conf) / 2
+        detections.append(
+                      {
+                          "plate_number": text,
+                          "confidence": round(overall_conf, 3),
+                          "vehicle_type": vehicle["label"],
+                          "plate_crop": plate_crop,
+                      }
+                  )
+
+    return annotated, detections
