@@ -47,3 +47,24 @@ def insert_detection(plate_number, confidence, vehicle_type, source, image_path)
   conn.close()
   
   return new_id
+
+# implement anti-duplicate check
+def was_recently_seen(plate_number, within_seconds=10):
+  conn = get_connection()
+  row = conn.execute(
+    """
+    SELECT timestamp FROM detections
+    WHERE plate_number = ?
+    ORDER BY id DESC LIMIT 1
+    """,
+    (plate_number,),
+  ).fetchone()
+  conn.close()
+  
+  if row is None:
+    return False
+  
+  last_seen = datetime.fromisoformat(row["timestamp"])
+  elapsed = (datetime.now() - last_seen).total_seconds()
+  
+  return elapsed < within_seconds
