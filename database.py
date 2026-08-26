@@ -48,7 +48,7 @@ def insert_detection(plate_number, confidence, vehicle_type, source, image_path)
   
   return new_id
 
-# implement anti-duplicate check
+# implement anti-duplicate check 
 def was_recently_seen(plate_number, within_seconds=10):
   conn = get_connection()
   row = conn.execute(
@@ -68,3 +68,22 @@ def was_recently_seen(plate_number, within_seconds=10):
   elapsed = (datetime.now() - last_seen).total_seconds()
   
   return elapsed < within_seconds
+
+def get_recent_detections(limit=50, search=None):
+  conn = get_connection()
+  if search:
+    rows = conn.execute(
+      """
+      SELECT * FROM detections
+      WHERE plate_number LIKE ?
+      ORDER BY id DESC LIMIT ?
+      """,
+      (f"%{search}%", limit),
+    ).fetchall()
+    
+  else:
+    rows = conn.execute(
+      "SELECT * FROM detections ORDER BY id DESC LIMIT ?", (limit)
+    ).fetchall()
+  conn.close()
+  return [dict(r) for r in rows]
