@@ -87,3 +87,6 @@ def get_recent_detections(limit=50, search=None):
     ).fetchall()
   conn.close()
   return [dict(r) for r in rows]
+
+def run_plate():
+  pass 
