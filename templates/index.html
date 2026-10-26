@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlateVision Nepal | AI Vehicle Number Plate Detection & Recognition System</title>
+    <!-- Google Fonts: Inter, Outfit, and Noto Sans Devanagari for authentic Nepali text -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Chart.js for analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Background dynamic ambient glow spheres -->
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+    <div class="ambient-glow glow-3"></div>
+
+    <div class="app-container">
+        <!-- Top Glassy Navigation Header -->
+        <header class="glass-header">
+            <div class="header-brand">
+                <div class="brand-icon-wrapper">
+                    <i class="fa-solid fa-camera-viewfinder"></i>
+                    <span class="live-dot"></span>
+                </div>
+                <div class="brand-text">
+                    <div class="brand-title">
+                        PlateVision <span class="badge-nepal"><span class="flag-icon">🇳🇵</span> NEPAL</span>
+                    </div>
+                    <div class="brand-subtitle">
+                        AI-Powered Automatic Number Plate Recognition (ANPR / ALPR)
+                    </div>
+                </div>
+            </div>
+
+            <!-- Header Status & Nav Tabs -->
+            <nav class="header-nav">
+                <button class="nav-tab active" data-tab="scanner-tab">
+                    <i class="fa-solid fa-radar"></i> Scanner & Upload
+                </button>
+                <button class="nav-tab" data-tab="webcam-tab">
+                    <i class="fa-solid fa-video"></i> Live Stream
+                </button>
+                <button class="nav-tab" data-tab="registry-tab">
+                    <i class="fa-solid fa-database"></i> Registry Logs
+                </button>
+                <button class="nav-tab" data-tab="analytics-tab">
+                    <i class="fa-solid fa-chart-pie"></i> Analytics
+                </button>
+                <button class="nav-tab" data-tab="guide-tab">
+                    <i class="fa-solid fa-book-bookmark"></i> Nepal Plate Guide
+                </button>
+            </nav>
+
+            <div class="header-actions">
+                <div class="status-pill online">
+                    <span class="status-indicator"></span>
+                    <span class="status-text">Models Ready</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- KPI Glassy Counter Cards -->
+        <section class="stats-overview">
+            <div class="glass-card stat-card">
+                <div class="stat-icon cyan">
+                    <i class="fa-solid fa-id-card-clip"></i>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Total Plates Scanned</span>
+                    <h3 class="stat-value" id="kpi-total-scans">{{ stats.total_detections }}</h3>
+                    <span class="stat-trend positive"><i class="fa-solid fa-arrow-trend-up"></i> Lifetime logs</span>
+                </div>
+            </div>
+
+            <div class="glass-card stat-card">
+                <div class="stat-icon emerald">
+                    <i class="fa-solid fa-calendar-day"></i>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Today's Traffic</span>
+                    <h3 class="stat-value" id="kpi-today-scans">{{ stats.today_detections }}</h3>
+                    <span class="stat-trend positive"><i class="fa-solid fa-clock"></i> Active today</span>
+                </div>
+            </div>
+
+            <div class="glass-card stat-card">
+                <div class="stat-icon purple">
+                    <i class="fa-solid fa-bullseye"></i>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Avg Confidence</span>
+                    <h3 class="stat-value" id="kpi-avg-conf">{{ (stats.avg_confidence * 100) | round(1) }}%</h3>
+                    <span class="stat-trend highlight"><i class="fa-solid fa-microchip"></i> High precision</span>
+                </div>
+            </div>
+
+            <div class="glass-card stat-card">
+                <div class="stat-icon amber">
+                    <i class="fa-solid fa-language"></i>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Dual-Script Engine</span>
+                    <h3 class="stat-value devanagari-font">नेपाली & EN</h3>
+                    <span class="stat-trend"><i class="fa-solid fa-shield-halved"></i> Devanagari + Embossed</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 1: SCANNER & UPLOAD -->
+        <main class="tab-content active" id="scanner-tab">
+            <div class="scanner-grid">
+                <!-- Left: Upload Zone & Controls -->
+                <div class="glass-card upload-panel">
+                    <div class="panel-header">
+                        <h2><i class="fa-solid fa-cloud-arrow-up"></i> Vehicle Image Scanner</h2>
+                        <span class="pill-badge">Cars • Bikes • Trucks • Buses</span>
+                    </div>
+
+                    <!-- Dropzone -->
+                    <div class="dropzone" id="image-dropzone">
+                        <input type="file" id="file-input" accept="image/*" class="file-input-hidden">
+                        <div class="dropzone-content">
+                            <div class="upload-icon-circle">
+                                <i class="fa-solid fa-file-arrow-up"></i>
+                            </div>
+                            <h3>Drag & drop vehicle photo here</h3>
+                            <p>Supports JPG, PNG, WEBP high-res photos or close-ups</p>
+                            <button class="glass-btn primary" id="btn-browse-file" type="button">
+                                <i class="fa-solid fa-folder-open"></i> Browse Vehicle Photo
+                            </button>
+                        </div>
+                        <div class="dropzone-loading" id="dropzone-loader" style="display: none;">
+                            <div class="spinner"></div>
+                            <p>Analyzing Vehicle & OCRing Plate...</p>
+                            <span class="loader-sub">Running YOLOv8 + Dual-Script EasyOCR</span>
+                        </div>
+                    </div>
+
+                    <!-- Instant Test Samples Bar -->
+                    <div class="quick-samples-section">
+                        <div class="samples-title">
+                            <i class="fa-solid fa-bolt"></i> Quick Demo Test Samples (One-Click)
+                        </div>
+                        <div class="samples-button-row">
+                            <button class="sample-chip" data-sample="sample_bike_nepali.jpg">
+                                <i class="fa-solid fa-motorcycle"></i>
+                                <span>Bike (बा ९२ प)</span>
+                            </button>
+                            <button class="sample-chip" data-sample="sample_car_nepali.jpg">
+                                <i class="fa-solid fa-car"></i>
+                                <span>Private Car (बा १५ च)</span>
+                            </button>
+                            <button class="sample-chip" data-sample="sample_embossed_plate.jpg">
+                                <i class="fa-solid fa-shield"></i>
+                                <span>Embossed Plate</span>
+                            </button>
+                            <button class="sample-chip" data-sample="sample_bus_nepali.jpg">
+                                <i class="fa-solid fa-bus"></i>
+                                <span>Public Bus (ना ५ ख)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Visualizer & Detection Results -->
+                <div class="glass-card result-panel">
+                    <div class="panel-header">
+                        <h2><i class="fa-solid fa-chart-simple"></i> Detection Breakdown</h2>
+                        <span class="pill-badge" id="processing-time-badge">Ready for Scan</span>
+                    </div>
+
+                    <div class="result-body" id="result-container">
+                        <!-- Placeholder State before upload -->
+                        <div class="placeholder-state" id="placeholder-state">
+                            <div class="placeholder-graphic">
+                                <i class="fa-solid fa-camera-rotate"></i>
+                            </div>
+                            <h3>No Vehicle Scanned Yet</h3>
+                            <p>Upload a vehicle photo or click a Quick Demo chip to view real-time plate bounding boxes, transliterated numbers, and vehicle categorization.</p>
+                        </div>
+
+                        <!-- Active Detection Display (Hidden initially) -->
+                        <div class="detection-display" id="detection-display" style="display: none;">
+                            <!-- Annotated Frame View -->
+                            <div class="annotated-image-box">
+                                <img id="annotated-img-preview" src="" alt="Annotated Frame">
+                                <div class="img-badge-overlay" id="img-badge-overlay">
+                                    <span class="overlay-tag" id="overlay-tag-count">1 Plate Found</span>
+                                </div>
+                            </div>
+
+                            <!-- Extracted Plate Cards Container -->
+                            <div class="plates-list" id="plates-list">
+                                <!-- Cards injected dynamically via JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- TAB 2: LIVE STREAM / WEBCAM -->
+        <main class="tab-content" id="webcam-tab">
+            <div class="glass-card webcam-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2><i class="fa-solid fa-video"></i> Real-Time Video Camera Feed</h2>
+                        <p class="panel-desc">Stream live video from your laptop camera or connected ANPR CCTV camera.</p>
+                    </div>
+                    <div class="webcam-controls">
+                        <button class="glass-btn primary" id="btn-toggle-cam">
+                            <i class="fa-solid fa-play"></i> Start Camera
+                        </button>
+                        <button class="glass-btn secondary" id="btn-snap-cam" disabled>
+                            <i class="fa-solid fa-camera"></i> Snapshot & Scan
+                        </button>
+                    </div>
+                </div>
+
+                <div class="webcam-viewport-wrapper">
+                    <div class="video-container">
+                        <video id="webcam-video" autoplay playsinline muted></video>
+                        <canvas id="webcam-canvas" style="display: none;"></canvas>
+                        <div class="cam-overlay-feed" id="cam-overlay-feed">
+                            <img id="stream-annotated-result" style="display: none;" alt="Live Detection Stream">
+                        </div>
+                        <div class="camera-offline-msg" id="camera-offline-msg">
+                            <i class="fa-solid fa-video-slash"></i>
+                            <h3>Camera Inactive</h3>
+                            <p>Click "Start Camera" above to initiate real-time video processing.</p>
+                        </div>
+                    </div>
+
+                    <!-- Live feed live plates log -->
+                    <div class="live-stream-log-sidebar">
+                        <div class="sidebar-header">
+                            <h4><i class="fa-solid fa-satellite-dish"></i> Live Plate Feed</h4>
+                            <span class="live-tag">REALTIME</span>
+                        </div>
+                        <div class="live-stream-records" id="live-stream-records">
+                            <div class="empty-feed-hint">Waiting for vehicles to enter camera view...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- TAB 3: REGISTRY & DATABASE LOGS -->
+        <main class="tab-content" id="registry-tab">
+            <div class="glass-card registry-panel">
+                <div class="panel-header registry-header">
+                    <div>
+                        <h2><i class="fa-solid fa-table-list"></i> Vehicle Number Plate Registry</h2>
+                        <p class="panel-desc">Complete searchable and exportable audit trail of recognized vehicles.</p>
+                    </div>
+                    <div class="registry-actions">
+                        <a href="/api/export/csv" class="glass-btn success">
+                            <i class="fa-solid fa-file-csv"></i> Export to CSV
+                        </a>
+                        <button class="glass-btn danger" id="btn-clear-db">
+                            <i class="fa-solid fa-trash-can"></i> Clear Records
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filters & Search Toolbar -->
+                <div class="registry-toolbar">
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="registry-search-input" placeholder="Search plate (e.g. बा ९२ प, BA 15, Bagmati)...">
+                    </div>
+
+                    <div class="filters-group">
+                        <div class="filter-item">
+                            <label><i class="fa-solid fa-car"></i> Vehicle:</label>
+                            <select id="filter-vehicle-type" class="glass-select">
+                                <option value="all">All Vehicles</option>
+                                <option value="motorcycle">Motorcycle / Scooter</option>
+                                <option value="car">Car / Jeep / Van</option>
+                                <option value="bus">Public Bus</option>
+                                <option value="truck">Truck / Freight</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-item">
+                            <label><i class="fa-solid fa-globe"></i> Script:</label>
+                            <select id="filter-script-type" class="glass-select">
+                                <option value="all">All Scripts</option>
+                                <option value="nepali">Devanagari (नेपाली)</option>
+                                <option value="english">Latin (Embossed)</option>
+                            </select>
+                        </div>
+
+                        <button class="glass-btn secondary" id="btn-refresh-registry">
+                            <i class="fa-solid fa-rotate"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="table-responsive">
+                    <table class="glass-table" id="registry-table">
+                        <thead>
+                            <tr>
+                                <th>Crop</th>
+                                <th>Plate Number (Raw)</th>
+                                <th>Standardized</th>
+                                <th>Devanagari</th>
+                                <th>Script</th>
+                                <th>Vehicle Type</th>
+                                <th>Zone / Province</th>
+                                <th>Confidence</th>
+                                <th>Timestamp</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="registry-tbody">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination Footer -->
+                <div class="table-footer">
+                    <span id="registry-count-label">Showing records</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- TAB 4: ANALYTICS & INSIGHTS -->
+        <main class="tab-content" id="analytics-tab">
+            <div class="analytics-grid">
+                <!-- Vehicle Distribution Chart -->
+                <div class="glass-card chart-card">
+                    <div class="chart-header">
+                        <h3><i class="fa-solid fa-chart-pie"></i> Vehicle Category Distribution</h3>
+                        <span class="badge-mini">Cars, Bikes, Trucks, Buses</span>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="vehicleDistributionChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Script Ratio Chart -->
+                <div class="glass-card chart-card">
+                    <div class="chart-header">
+                        <h3><i class="fa-solid fa-scale-balanced"></i> Script Adoption Ratio</h3>
+                        <span class="badge-mini">Traditional Devanagari vs Embossed</span>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="scriptRatioChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Traffic Flow Chart -->
+                <div class="glass-card chart-card full-width">
+                    <div class="chart-header">
+                        <h3><i class="fa-solid fa-chart-line"></i> Hourly Traffic Scan Volume</h3>
+                        <span class="badge-mini">Detections Today</span>
+                    </div>
+                    <div class="chart-body tall">
+                        <canvas id="trafficFlowChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- TAB 5: NEPAL NUMBER PLATE GUIDE -->
+        <main class="tab-content" id="guide-tab">
+            <div class="guide-container">
+                <div class="glass-card guide-intro-card">
+                    <div class="guide-header">
+                        <span class="guide-flag">🇳🇵</span>
+                        <div>
+                            <h2>Comprehensive Guide to Nepal Vehicle License Plates</h2>
+                            <p>Understand the rules, zonal formats, provincial standards, and embossed coding system in Nepal.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="guide-cards-grid">
+                    <!-- Format 1: Traditional Zonal -->
+                    <div class="glass-card guide-card">
+                        <div class="guide-card-header">
+                            <span class="tag-number">01</span>
+                            <h3>Traditional Zonal Plates (Devanagari)</h3>
+                        </div>
+                        <div class="plate-mockup red">
+                            <div class="plate-text devanagari-font">बा ९२ प ५६७८</div>
+                        </div>
+                        <div class="guide-card-body">
+                            <p>Used widely across Nepal prior to provincial federalization. Identified by an administrative zone abbreviation:</p>
+                            <ul>
+                                <li><strong>बा (BA)</strong>: Bagmati Zone (Kathmandu Valley)</li>
+                                <li><strong>ना (NA)</strong>: Narayani Zone (Chitwan, Birgunj)</li>
+                                <li><strong>९२ (92)</strong>: Lot / Series number</li>
+                                <li><strong>प (PA)</strong>: Vehicle category symbol (Two-Wheeler)</li>
+                                <li><strong>५६७८</strong>: 4-digit vehicle registration number</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Format 2: Provincial Format -->
+                    <div class="glass-card guide-card">
+                        <div class="guide-card-header">
+                            <span class="tag-number">02</span>
+                            <h3>Traditional Provincial Plates (Devanagari)</h3>
+                        </div>
+                        <div class="plate-mockup red">
+                            <div class="plate-text devanagari-font">बा.प्र. ०२-०३५ प ५६७८</div>
+                        </div>
+                        <div class="guide-card-body">
+                            <p>Adopted after Nepal transitioned to federal provinces:</p>
+                            <ul>
+                                <li><strong>बा.प्र. / बाप्र</strong>: बागमती प्रदेश (Province 3)</li>
+                                <li><strong>०२-०३५</strong>: District code & Lot sequence number</li>
+                                <li><strong>प</strong>: Vehicle category symbol</li>
+                                <li><strong>५६७८</strong>: 4-digit unique registration number</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Format 3: Embossed Plates -->
+                    <div class="glass-card guide-card">
+                        <div class="guide-card-header">
+                            <span class="tag-number">03</span>
+                            <h3>High-Security Embossed Plates (Latin Script)</h3>
+                        </div>
+                        <div class="plate-mockup white">
+                            <div class="plate-top">BAGMATI PROVINCE</div>
+                            <div class="plate-main">02-035 PA 5678</div>
+                        </div>
+                        <div class="guide-card-body">
+                            <p>Modern national standard with laser-etched barcodes and RFID chips:</p>
+                            <ul>
+                                <li><strong>BAGMATI PROVINCE</strong>: Province name header</li>
+                                <li><strong>02-035</strong>: Province code & series</li>
+                                <li><strong>PA, PB, PC</strong>: Vehicle category classification</li>
+                                <li><strong>5678</strong>: 4-digit vehicle number</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reference Table: Vehicle Letter Meanings -->
+                <div class="glass-card guide-table-card">
+                    <h3><i class="fa-solid fa-list-check"></i> Nepal Vehicle Category Classification Reference</h3>
+                    <div class="table-responsive">
+                        <table class="glass-table compact">
+                            <thead>
+                                <tr>
+                                    <th>Devanagari Symbol</th>
+                                    <th>Embossed Code</th>
+                                    <th>Vehicle Category</th>
+                                    <th>Color Scheme Standard</th>
+                                    <th>Common Vehicle Types</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="dev-badge">प</span></td>
+                                    <td><strong>PA, PB, PC</strong></td>
+                                    <td>Private Two-Wheeler</td>
+                                    <td><span class="color-chip red">Red plate, White text</span></td>
+                                    <td>Motorcycles, Scooters, Mopeds</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="dev-badge">च</span></td>
+                                    <td><strong>CA, CB, CC</strong></td>
+                                    <td>Private Light Four-Wheeler</td>
+                                    <td><span class="color-chip red">Red plate, White text</span></td>
+                                    <td>Cars, SUVs, Sedans, Jeeps, Private Vans</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="dev-badge">ख</span></td>
+                                    <td><strong>BA, BB</strong></td>
+                                    <td>Public Passenger Transport</td>
+                                    <td><span class="color-chip black">Black plate, White text</span></td>
+                                    <td>Public Buses, Microbuses, Minibuses</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="dev-badge">क</span></td>
+                                    <td><strong>BA, BC</strong></td>
+                                    <td>Heavy Commercial Goods</td>
+                                    <td><span class="color-chip black">Black plate, White text</span></td>
+                                    <td>Trucks, Tankers, Cargo Containers</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="dev-badge">ज</span></td>
+                                    <td><strong>CA, DA</strong></td>
+                                    <td>Commercial Taxi / Rental</td>
+                                    <td><span class="color-chip black">Black plate, White text</span></td>
+                                    <td>Meter Taxis, Rental Cars</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="dev-badge">झ</span></td>
+                                    <td><strong>GA</strong></td>
+                                    <td>Government Vehicle (सरकारी)</td>
+                                    <td><span class="color-chip white">White plate, Red text</span></td>
+                                    <td>Ministry & Official Govt Vehicles</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="dev-badge">ब</span></td>
+                                    <td><strong>GA</strong></td>
+                                    <td>Public Corporation (संस्थान)</td>
+                                    <td><span class="color-chip yellow">Yellow plate, Blue text</span></td>
+                                    <td>NEA, Telecom, Water Supply</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="dev-badge">विद्युतीय</span></td>
+                                    <td><strong>EV</strong></td>
+                                    <td>Electric Vehicles (EV)</td>
+                                    <td><span class="color-chip green">Green plate, White text</span></td>
+                                    <td>Electric Cars, Electric Scooters</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Crop Preview Lightbox Modal -->
+        <div class="modal-backdrop" id="crop-modal" style="display: none;">
+            <div class="glass-card modal-card">
+                <div class="modal-header">
+                    <h3 id="modal-plate-title">Plate Crop Inspection</h3>
+                    <button class="modal-close" id="btn-close-modal"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-img-container">
+                        <img id="modal-crop-img" src="" alt="License Plate Crop">
+                    </div>
+                    <div class="modal-details-grid" id="modal-details-grid">
+                        <!-- Filled dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div class="toast-container" id="toast-container"></div>
+    </div>
+
+    <!-- App JavaScript -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
