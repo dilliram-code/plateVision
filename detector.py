@@ -301,9 +301,82 @@ class ANPRDetector:
         candidates.sort(key=lambda c: c["area"], reverse=True)
         return candidates[:3]  # Return top 3 candidates
 
+    def _detect_plates_color(self, crop: np.ndarray) -> List[Dict[str, Any]]:
+        """
+        Segment plates based on Nepal's distinct license plate color standards:
+        - Red (निजी): Private two-wheelers and four-wheelers
+        - Black (सार्वजनिक): Public buses, trucks, taxis
+        - White (इम्बोस्ड / सरकारी): High-security embossed and government plates
+        - Green (विद्युतीय): Electric Vehicles (EV)
+        """
+        h, w = crop.shape[:2]
+        if h < 25 or w < 35:
+            return []
+
+        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        candidates = []
+
+        # 1. Red Plates (Private)
+        lower_r1, upper_r1 = np.array([0, 60, 50]), np.array([12, 255, 255])
+        lower_r2, upper_r2 = np.array([168, 60, 50]), np.array([180, 255, 255])
+        red_mask = cv2.inRange(hsv, lower_r1, upper_r1) | cv2.inRange(hsv, lower_r2, upper_r2)
+
+        # 2. Black Plates (Public transport / Taxi / Freight)
+        black_mask = cv2.inRange(hsv, np.array([0, 0, 0]), np.array([180, 100, 60]))
+
+        # 3. White Plates (Embossed / Government)
+        white_mask = cv2.inRange(hsv, np.array([0, 0, 175]), np.array([180, 55, 255]))
+
+        # 4. Green Plates (EV Electric Vehicles)
+        green_mask = cv2.inRange(hsv, np.array([35, 60, 50]), np.array([85, 255, 255]))
+
+        combined_masks = [
+            ("red_private", red_mask),
+            ("black_public", black_mask),
+            ("white_embossed", white_mask),
+            ("green_ev", green_mask),
+        ]
+
+        crop_area = h * w
+        for tag, mask in combined_masks:
+            # Morphological cleanup
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+            cleaned_mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+            contours, _ = cv2.findContours(cleaned_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            for cnt in contours:
+                x, y, bw, bh = cv2.boundingRect(cnt)
+                area = bw * bh
+                aspect_ratio = float(bw) / float(bh)
+
+                # Plate size constraints
+                if not (0.008 * crop_area <= area <= 0.40 * crop_area):
+                    continue
+                if bw < 35 or bh < 18:
+                    continue
+
+                # Aspect ratio: 0.9 - 5.5
+                if 0.9 <= aspect_ratio <= 5.5:
+                    pad_x = int(bw * 0.05)
+                    pad_y = int(bh * 0.08)
+                    cx1 = max(0, x - pad_x)
+                    cy1 = max(0, y - pad_y)
+                    cx2 = min(w, x + bw + pad_x)
+                    cy2 = min(h, y + bh + pad_y)
+
+                    candidates.append({
+                        "bbox": (cx1, cy1, cx2, cy2),
+                        "conf": 0.72,
+                        "method": f"color_{tag}",
+                        "area": area,
+                    })
+
+        candidates.sort(key=lambda c: c["area"], reverse=True)
+        return candidates[:3]
+
     def locate_plates(self, vehicle_crop: np.ndarray, vehicle_type: str) -> List[Dict[str, Any]]:
         """
-        Multi-tier plate localization coordinator. Tries YOLO -> Haar -> Morphological.
+        Multi-tier plate localization coordinator. Tries YOLO -> Haar -> Color -> Morphological.
         """
         plates = []
 
@@ -315,22 +388,21 @@ class ANPRDetector:
         if not plates and self.plate_cascade is not None:
             plates = self._detect_plates_haar(vehicle_crop)
 
-        # 3. Autonomous Morphological Segmenter
+        # 3. Nepal-specific Color Segmenter (Red, Black, White, Green)
+        if not plates:
+            plates = self._detect_plates_color(vehicle_crop)
+
+        # 4. Autonomous Morphological Segmenter
         if not plates:
             plates = self._detect_plates_morphological(vehicle_crop, vehicle_type)
 
-        # 4. Fallback: If still nothing detected, check the lower third of vehicle
-        # where plates are universally mounted
+        # 5. Fallback: If still nothing detected, check the lower third and center of vehicle
         if not plates and vehicle_crop.size > 0:
             vh, vw = vehicle_crop.shape[:2]
-            if vh >= 60 and vw >= 80:
-                # Lower third sub-region
-                fy1 = int(vh * 0.65)
-                fy2 = int(vh * 0.98)
-                fx1 = int(vw * 0.15)
-                fx2 = int(vw * 0.85)
+            if vh >= 50 and vw >= 70:
+                # Lower region
                 plates.append({
-                    "bbox": (fx1, fy1, fx2, fy2),
+                    "bbox": (int(vw * 0.15), int(vh * 0.45), int(vw * 0.85), int(vh * 0.95)),
                     "conf": 0.50,
                     "method": "heuristic_crop",
                 })
@@ -646,29 +718,57 @@ class ANPRDetector:
 
                 detections.append(detection_record)
 
-                # Check anti-duplicate rule and insert to database
-                if not database.was_recently_seen(standardized, within_seconds=6):
-                    try:
-                        database.insert_detection(
-                            plate_number=raw_text,
-                            standardized_plate=standardized,
-                            devanagari_display=devanagari_display,
-                            script=script,
-                            plate_type=plate_type,
-                            zone_or_province=zone_or_prov,
-                            vehicle_type=vehicle["label"],
-                            vehicle_category=veh_cat,
-                            confidence=overall_conf,
-                            ocr_confidence=ocr_conf,
-                            detector_confidence=plate["conf"],
-                            source=source_name,
-                            plate_crop_path=crop_path_rel,
-                            processing_time_ms=round((time.time() - start_time) * 1000, 2),
-                        )
-                    except Exception as db_err:
-                        print(f"[PlateVision] Database insert error: {db_err}")
+        # Stage 5: Deduplicate overlapping detections (NMS & Same Plate consolidation)
+        unique_detections = []
+        for det in sorted(detections, key=lambda d: d["confidence"], reverse=True):
+            is_dup = False
+            for u in unique_detections:
+                # Same plate text
+                if det["standardized_plate"] and det["standardized_plate"] == u["standardized_plate"]:
+                    is_dup = True
+                    break
+                # Bounding box IoU overlap check
+                b1 = det["plate_bbox"]
+                b2 = u["plate_bbox"]
+                ix1, iy1 = max(b1[0], b2[0]), max(b1[1], b2[1])
+                ix2, iy2 = min(b1[2], b2[2]), min(b1[3], b2[3])
+                iw, ih = max(0, ix2 - ix1), max(0, iy2 - iy1)
+                inter = iw * ih
+                a1 = (b1[2] - b1[0]) * (b1[3] - b1[1])
+                a2 = (b2[2] - b2[0]) * (b2[3] - b2[1])
+                iou = inter / float(a1 + a2 - inter + 1e-6)
+                if iou > 0.35:
+                    is_dup = True
+                    break
+            if not is_dup:
+                unique_detections.append(det)
 
-        # Stage 5: Render Sleek Glassy Annotations on Frame
+        detections = unique_detections
+
+        # Log deduplicated detections to database
+        for det in detections:
+            if not database.was_recently_seen(det["standardized_plate"], within_seconds=6):
+                try:
+                    database.insert_detection(
+                        plate_number=det["plate_number"],
+                        standardized_plate=det["standardized_plate"],
+                        devanagari_display=det["devanagari_display"],
+                        script=det["script"],
+                        plate_type=det["plate_type"],
+                        zone_or_province=det["zone_or_province"],
+                        vehicle_type=det["vehicle_type"],
+                        vehicle_category=det["vehicle_category"],
+                        confidence=det["confidence"],
+                        ocr_confidence=det["ocr_confidence"],
+                        detector_confidence=det["detector_confidence"],
+                        source=source_name,
+                        plate_crop_path=det["plate_crop_path"],
+                        processing_time_ms=round((time.time() - start_time) * 1000, 2),
+                    )
+                except Exception as db_err:
+                    print(f"[PlateVision] Database insert error: {db_err}")
+
+        # Stage 6: Render Sleek Glassy Annotations on Frame
         annotated_frame = self._draw_modern_annotations(frame, detections)
         return annotated_frame, detections
 

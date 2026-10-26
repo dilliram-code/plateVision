@@ -22,16 +22,23 @@ SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
 def get_font(size: int = 24):
     """Attempts to find a system font supporting Unicode/Devanagari, or falls back to default."""
     font_paths = [
-        "/System/Library/Fonts/KohinoorBangla.ttc",
-        "/System/Library/Fonts/Supplemental/DevanagariMT.ttc",
-        "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-        "/System/Library/Fonts/Helvetica.ttc",
-        "/System/Library/Fonts/SFNS.ttf",
+        ("/System/Library/Fonts/Supplemental/ITFDevanagari.ttc", 0),
+        ("/System/Library/Fonts/Supplemental/DevanagariMT.ttc", 0),
+        ("/System/Library/Fonts/Supplemental/Devanagari Sangam MN.ttc", 0),
+        ("/System/Library/Fonts/Helvetica.ttc", 0),
     ]
-    for p in font_paths:
+    for p, idx in font_paths:
         if os.path.exists(p):
             try:
-                return ImageFont.truetype(p, size)
+                return ImageFont.truetype(p, size, index=idx)
+            except Exception:
+                continue
+def get_latin_font(size: int = 24):
+    """Returns a clean Latin font for Embossed English text."""
+    for p in ["/System/Library/Fonts/Helvetica.ttc", "/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/SFNS.ttf"]:
+        if os.path.exists(p):
+            try:
+                return ImageFont.truetype(p, size, index=0)
             except Exception:
                 continue
     return ImageFont.load_default()
@@ -132,11 +139,11 @@ def create_sample_embossed():
     draw.rounded_rectangle([(240, 280), (560, 350)], radius=5, fill=(245, 247, 250), outline=(20, 20, 25), width=3)
 
     # Top line: BAGMATI PROVINCE
-    font_top = get_font(18)
+    font_top = get_latin_font(20)
     draw.text((400, 298), "BAGMATI PROVINCE", fill=(20, 25, 30), font=font_top, anchor="mm")
 
     # Bottom line: 02-035 PA 5678
-    font_bot = get_font(28)
+    font_bot = get_latin_font(30)
     draw.text((400, 328), "02-035 PA 5678", fill=(10, 15, 20), font=font_bot, anchor="mm")
 
     path = SAMPLES_DIR / "sample_embossed_plate.jpg"
