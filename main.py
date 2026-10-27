@@ -115,14 +115,14 @@ async def serve_dashboard(request: Request):
     stats = database.get_detection_stats()
     recent = database.get_recent_detections(limit=15)
     return templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
-            "stats": stats,
-            "recent_detections": recent,
-            "app_version": "2.0.0",
-        },
-    )
+    request=request,
+    name="index.html",
+    context={
+        "stats": stats,
+        "recent_detections": recent,
+        "app_version": "2.0.0",
+    },
+)
 
 
 # ==============================================================================
